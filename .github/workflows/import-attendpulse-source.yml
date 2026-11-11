@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - AttendPulse-seo-ready.zip
+      - archive.parts/**
 
 permissions:
   contents: write
@@ -20,15 +20,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Expand source archive into repository root
+      - name: Reassemble and extract source archive
         shell: bash
         run: |
           set -euo pipefail
-          test -f AttendPulse-seo-ready.zip
+          test -d archive.parts
+          cat archive.parts/part-* > /tmp/AttendPulse-seo-ready.zip.b64
+          base64 --decode /tmp/AttendPulse-seo-ready.zip.b64 > /tmp/AttendPulse-seo-ready.zip
           mkdir -p /tmp/attendpulse-import
-          unzip -q AttendPulse-seo-ready.zip -d /tmp/attendpulse-import
+          unzip -q /tmp/AttendPulse-seo-ready.zip -d /tmp/attendpulse-import
           cp -a /tmp/attendpulse-import/. .
-          rm -rf /tmp/attendpulse-import AttendPulse-seo-ready.zip
+          rm -rf /tmp/attendpulse-import /tmp/AttendPulse-seo-ready.zip /tmp/AttendPulse-seo-ready.zip.b64 archive.parts
 
       - name: Commit imported source files
         shell: bash
