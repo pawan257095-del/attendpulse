@@ -1,0 +1,6 @@
+{
+  "name": "AttendPulse - Daily Attendance Register",
+  "description": "Modern, offline-first digital attendance register app. Manage multiple activities, track one-tap daily attendance, shifts, overtime, holidays, analytics, and export professional PDF & CSV reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

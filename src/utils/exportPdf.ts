@@ -1,0 +1,298 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { Activity, Member, AttendanceRecord, Shift, MemberAttendanceStats, DailyAttendanceSummary } from '../types';
+import { formatDateSafe } from './dateUtils';
+
+interface GenerateDailyPdfParams {
+  activity: Activity;
+  dateStr: string;
+  members: Member[];
+  records: AttendanceRecord[];
+  shifts: Shift[];
+  summary: DailyAttendanceSummary;
+  appName?: string;
+  orgName?: string;
+}
+
+export function generateDailyAttendancePdf({
+  activity,
+  dateStr,
+  members,
+  records,
+  shifts,
+  summary,
+  appName = 'AttendPulse',
+  orgName = 'Daily Attendance Register',
+}: GenerateDailyPdfParams): jsPDF {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header Banner
+  doc.setFillColor(79, 70, 229); // #4f46e5 (Indigo)
+  doc.rect(0, 0, pageWidth, 28, 'F');
+
+  // Title
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text(appName.toUpperCase(), 14, 12);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(orgName, 14, 18);
+
+  // Date on the right
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`DATE: ${formatDateSafe(dateStr)}`, pageWidth - 14, 14, { align: 'right' });
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`ACTIVITY: ${activity.name}`, pageWidth - 14, 20, { align: 'right' });
+
+  // Summary Metrics Card
+  let y = 35;
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, y, pageWidth - 28, 22, 3, 3, 'F');
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, y, pageWidth - 28, 22, 3, 3, 'D');
+
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text('TOTAL MEMBERS', 22, y + 7);
+  doc.text('PRESENT', 55, y + 7);
+  doc.text('ABSENT', 85, y + 7);
+  doc.text('HALF DAY', 115, y + 7);
+  doc.text('HOLIDAY', 145, y + 7);
+  doc.text('OVERTIME', 170, y + 7);
+
+  doc.setFontSize(12);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30, 41, 59);
+  doc.text(String(summary.totalMembers), 22, y + 16);
+
+  doc.setTextColor(16, 185, 129); // Green
+  doc.text(String(summary.presentCount), 55, y + 16);
+
+  doc.setTextColor(239, 68, 68); // Red
+  doc.text(String(summary.absentCount), 85, y + 16);
+
+  doc.setTextColor(245, 158, 11); // Amber
+  doc.text(String(summary.halfDayCount), 115, y + 16);
+
+  doc.setTextColor(59, 130, 246); // Blue
+  doc.text(String(summary.holidayCount), 145, y + 16);
+
+  doc.setTextColor(139, 92, 246); // Purple
+  doc.text(`${summary.overtimeCount} (${summary.totalOvertimeHours}h)`, 170, y + 16);
+
+  // Table
+  const shiftMap = new Map(shifts.map(s => [s.id, s.name]));
+  const recordMap = new Map(records.filter(r => r.date === dateStr && r.activityId === activity.id).map(r => [r.memberId, r]));
+
+  const tableData = members.map((m, idx) => {
+    const r = recordMap.get(m.id);
+    const status = r ? r.status : 'UNMARKED';
+    const shift = r?.shiftId ? (shiftMap.get(r.shiftId) || '-') : (m.assignedShiftId ? (shiftMap.get(m.assignedShiftId) || '-') : '-');
+    const ot = r?.overtimeHours ? `${r.overtimeHours} hrs` : '-';
+    const notes = r?.notes || '-';
+
+    return [
+      idx + 1,
+      m.memberCode,
+      m.name,
+      status,
+      shift,
+      ot,
+      notes,
+    ];
+  });
+
+  autoTable(doc, {
+    startY: y + 28,
+    head: [['#', 'Code', 'Member Name', 'Status', 'Shift', 'Overtime', 'Notes']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: {
+      fillColor: [79, 70, 229],
+      textColor: [255, 255, 255],
+      fontSize: 9,
+      fontStyle: 'bold',
+      halign: 'left',
+    },
+    styles: {
+      fontSize: 8.5,
+      cellPadding: 3,
+      textColor: [51, 65, 85],
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 24, fontStyle: 'bold' },
+      2: { cellWidth: 45 },
+      3: { cellWidth: 26, fontStyle: 'bold' },
+      4: { cellWidth: 28 },
+      5: { cellWidth: 22 },
+      6: { cellWidth: 'auto' },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 3) {
+        const val = data.cell.raw;
+        if (val === 'PRESENT') {
+          data.cell.styles.textColor = [16, 185, 129];
+        } else if (val === 'ABSENT') {
+          data.cell.styles.textColor = [239, 68, 68];
+        } else if (val === 'HALF_DAY') {
+          data.cell.styles.textColor = [217, 119, 6];
+        } else if (val === 'HOLIDAY') {
+          data.cell.styles.textColor = [37, 99, 235];
+        } else if (val === 'OVERTIME') {
+          data.cell.styles.textColor = [124, 58, 237];
+        }
+      }
+    },
+  });
+
+  // Footer
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Generated by ${appName} • Confidential Daily Attendance Register • Page ${i} of ${pageCount}`,
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 8,
+      { align: 'center' }
+    );
+  }
+
+  return doc;
+}
+
+interface GenerateMonthlyPdfParams {
+  activity: Activity;
+  startDateStr: string;
+  endDateStr: string;
+  memberStatsList: MemberAttendanceStats[];
+  appName?: string;
+  orgName?: string;
+}
+
+export function generateMonthlyAttendancePdf({
+  activity,
+  startDateStr,
+  endDateStr,
+  memberStatsList,
+  appName = 'AttendPulse',
+  orgName = 'Daily Attendance Register',
+}: GenerateMonthlyPdfParams): jsPDF {
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Header Banner
+  doc.setFillColor(15, 23, 42); // Slate 900
+  doc.rect(0, 0, pageWidth, 26, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(16);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`${appName.toUpperCase()} — ATTENDANCE PERFORMANCE REPORT`, 14, 11);
+
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.text(`${orgName} • Activity: ${activity.name}`, 14, 18);
+
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(`PERIOD: ${formatDateSafe(startDateStr)} to ${formatDateSafe(endDateStr)}`, pageWidth - 14, 14, { align: 'right' });
+
+  const tableData = memberStatsList.map((st, idx) => [
+    idx + 1,
+    st.memberCode,
+    st.memberName,
+    st.expectedWorkingDays,
+    st.presentDays,
+    st.halfDays,
+    st.absentDays,
+    st.holidays,
+    st.overtimeDays,
+    `${st.totalOvertimeHours}h`,
+    `${st.actualAttendanceDays} / ${st.expectedWorkingDays}`,
+    `${st.attendancePercentage}%`,
+  ]);
+
+  autoTable(doc, {
+    startY: 32,
+    head: [[
+      '#',
+      'Code',
+      'Member Name',
+      'Expected Days',
+      'Present',
+      'Half Day',
+      'Absent',
+      'Holidays',
+      'OT Days',
+      'OT Hours',
+      'Actual / Exp',
+      'Attendance %',
+    ]],
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [79, 70, 229],
+      textColor: [255, 255, 255],
+      fontSize: 8.5,
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.5,
+      halign: 'center',
+      textColor: [51, 65, 85],
+    },
+    columnStyles: {
+      0: { cellWidth: 8 },
+      1: { cellWidth: 20, fontStyle: 'bold' },
+      2: { cellWidth: 42, halign: 'left' },
+      11: { fontStyle: 'bold', cellWidth: 26 },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.column.index === 11) {
+        const val = parseFloat(data.cell.raw as string);
+        if (val >= 85) {
+          data.cell.styles.textColor = [16, 185, 129];
+        } else if (val >= 70) {
+          data.cell.styles.textColor = [217, 119, 6];
+        } else {
+          data.cell.styles.textColor = [239, 68, 68];
+        }
+      }
+    },
+  });
+
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `AttendPulse Attendance Management • Page ${i} of ${pageCount}`,
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 6,
+      { align: 'center' }
+    );
+  }
+
+  return doc;
+}

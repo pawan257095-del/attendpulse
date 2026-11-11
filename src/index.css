@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root { color-scheme: light; }
+  :root.dark { color-scheme: dark; }
+  input, select, textarea { color: #0f172a; }
+  .dark input, .dark select, .dark textarea { color: #f1f5f9; }
+  input::placeholder, textarea::placeholder { color: #64748b; opacity: 1; }
+  .dark input::placeholder, .dark textarea::placeholder { color: #94a3b8; }
+  select option { color: #0f172a; background: #fff; }
+}
+
+@layer utilities {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 1rem);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
