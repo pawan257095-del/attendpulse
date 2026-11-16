@@ -1,5 +1,4 @@
-User-agent: *
+﻿User-agent: *
 Allow: /
 
-# Replace example.com with the production domain before launch.
-Sitemap: https://example.com/sitemap.xml
+Sitemap: https://attendpulse-pro.vercel.app/sitemap.xml

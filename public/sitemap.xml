@@ -1,7 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- Replace example.com with the production domain before launch. -->
   <url>
-    <loc>https://example.com/</loc>
+    <loc>https://attendpulse-pro.vercel.app/</loc>
   </url>
 </urlset>
